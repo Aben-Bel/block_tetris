@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>1010! Block Puzzle</title>
+    <title>1010! Custom Difficulty</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -12,9 +12,9 @@
             --cell-empty: #2c2c2c;
             --block-color: #00e676;
             --block-shadow: rgba(0, 230, 118, 0.4);
+            --slider-bg: #333;
         }
 
-        /* Prevent scrolling/pull-to-refresh on mobile while playing */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color);
@@ -35,16 +35,15 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px;
+            padding: 15px 20px;
             box-sizing: border-box;
             font-size: 24px;
             font-weight: bold;
         }
 
-        /* Responsive Board */
         #board {
             width: 95vw;
-            max-width: 450px;
+            max-width: 400px;
             aspect-ratio: 1 / 1;
             background-color: var(--grid-bg);
             display: grid;
@@ -66,33 +65,31 @@
             box-shadow: 0 0 8px var(--block-shadow);
         }
 
-        /* Tray for the 3 choices */
         #tray {
             width: 100%;
-            max-width: 500px;
+            max-width: 400px;
             display: flex;
             justify-content: space-around;
             align-items: center;
-            flex: 1;
-            padding: 10px;
+            height: 100px;
+            padding: 10px 0;
             box-sizing: border-box;
         }
 
-        /* The shapes in the tray */
         .shape-container {
             position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
-            width: 100px;
-            height: 100px;
+            width: 90px;
+            height: 90px;
         }
 
         .shape {
             display: grid;
             gap: 2px;
             cursor: grab;
-            touch-action: none; /* Critical for custom dragging */
+            touch-action: none;
         }
 
         .shape.used {
@@ -109,7 +106,37 @@
             background-color: var(--block-color);
         }
 
-        /* The floating clone that follows your finger */
+        /* --- New Slider Controls --- */
+        #controls {
+            width: 95vw;
+            max-width: 400px;
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 5px;
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+
+        .slider-row label {
+            width: 100px;
+        }
+
+        input[type=range] {
+            flex-grow: 1;
+            margin: 0 10px;
+            accent-color: var(--block-color);
+        }
+
         #drag-ghost {
             position: fixed;
             pointer-events: none;
@@ -158,6 +185,21 @@
     <div id="board"></div>
     <div id="tray"></div>
 
+    <div id="controls">
+        <div class="slider-row">
+            <label>Easy (Small)</label>
+            <input type="range" id="weight-small" min="0" max="100" value="50">
+        </div>
+        <div class="slider-row">
+            <label>Medium (Lines)</label>
+            <input type="range" id="weight-medium" min="0" max="100" value="30">
+        </div>
+        <div class="slider-row">
+            <label>Hard (Huge)</label>
+            <input type="range" id="weight-large" min="0" max="100" value="20">
+        </div>
+    </div>
+
     <div id="drag-ghost"></div>
 
     <div id="game-over" class="hidden">
@@ -167,23 +209,25 @@
     </div>
 
     <script>
-        // --- Game State ---
         let grid = Array.from({ length: 10 }, () => Array(10).fill(0));
         let score = 0;
         let shapesInTray = 0;
 
-        // Expanded block library for the real game feel
-        const shapeLibrary = [
+        // --- Block Categories for Sliders ---
+        const shapesSmall = [
             [[1]], // 1x1
-            [[1, 1]], // 1x2 H
-            [[1], [1]], // 1x2 V
-            [[1, 1, 1]], // 1x3 H
-            [[1], [1], [1]], // 1x3 V
-            [[1, 1, 1, 1]], // 1x4 H
-            [[1], [1], [1], [1]], // 1x4 V
-            [[1, 1], [1, 1]], // 2x2 Square
+            [[1, 1]], [[1], [1]], // 1x2
+            [[1, 1], [1, 1]] // 2x2 Square
+        ];
+
+        const shapesMedium = [
+            [[1, 1, 1]], [[1], [1], [1]], // 1x3
+            [[1, 1, 1, 1]], [[1], [1], [1], [1]], // 1x4
+            [[1, 1], [1, 0]], [[1, 1], [0, 1]], [[1, 0], [1, 1]], [[0, 1], [1, 1]] // Small L's
+        ];
+
+        const shapesLarge = [
             [[1, 1, 1], [1, 1, 1], [1, 1, 1]], // 3x3 Square
-            [[1, 1], [1, 0]], [[1, 1], [0, 1]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], // Small L's
             [[1, 1, 1], [1, 0, 0], [1, 0, 0]], [[1, 1, 1], [0, 0, 1], [0, 0, 1]], // Big L's
             [[1, 0, 0], [1, 0, 0], [1, 1, 1]], [[0, 0, 1], [0, 0, 1], [1, 1, 1]]
         ];
@@ -194,13 +238,11 @@
         const scoreEl = document.getElementById('score');
         const ghostEl = document.getElementById('drag-ghost');
         
-        // --- Drag Variables ---
         let activeOriginalShape = null;
         let activeMatrix = null;
         let touchOffsetX = 0;
         let touchOffsetY = 0;
 
-        // --- Initialization ---
         function initBoard() {
             boardEl.innerHTML = '';
             for (let r = 0; r < 10; r++) {
@@ -214,12 +256,38 @@
             }
         }
 
+        // --- New Weighted Random Function ---
+        function getRandomShapeWeighted() {
+            // Read current slider values
+            const wSmall = parseInt(document.getElementById('weight-small').value);
+            const wMedium = parseInt(document.getElementById('weight-medium').value);
+            const wLarge = parseInt(document.getElementById('weight-large').value);
+
+            const totalWeight = wSmall + wMedium + wLarge;
+
+            // Failsafe: if user drags all sliders to 0, just give them a 1x1 block
+            if (totalWeight === 0) return shapesSmall[0];
+
+            // Pick a random number up to the total weight
+            let randomNum = Math.random() * totalWeight;
+
+            // Determine which category the random number falls into
+            if (randomNum < wSmall) {
+                return shapesSmall[Math.floor(Math.random() * shapesSmall.length)];
+            } else if (randomNum < wSmall + wMedium) {
+                return shapesMedium[Math.floor(Math.random() * shapesMedium.length)];
+            } else {
+                return shapesLarge[Math.floor(Math.random() * shapesLarge.length)];
+            }
+        }
+
         function spawnTrayShapes() {
             trayEl.innerHTML = '';
             shapesInTray = 3;
 
             for (let i = 0; i < 3; i++) {
-                const matrix = shapeLibrary[Math.floor(Math.random() * shapeLibrary.length)];
+                // Call the new weighted function instead of pure random
+                const matrix = getRandomShapeWeighted();
                 
                 const container = document.createElement('div');
                 container.classList.add('shape-container');
@@ -228,7 +296,6 @@
                 shapeEl.classList.add('shape');
                 shapeEl.dataset.matrix = JSON.stringify(matrix);
                 
-                // Tray shapes are drawn smaller (15px cells)
                 shapeEl.style.gridTemplateColumns = `repeat(${matrix[0].length}, 15px)`;
                 shapeEl.style.gridTemplateRows = `repeat(${matrix.length}, 15px)`;
 
@@ -241,16 +308,14 @@
                     });
                 });
 
-                // Attach Pointer Events for our custom drag
                 shapeEl.addEventListener('pointerdown', handlePointerDown);
-                
                 container.appendChild(shapeEl);
                 trayEl.appendChild(container);
             }
             checkGameOver();
         }
 
-        // --- Custom Drag Logic ---
+        // --- Custom Drag Logic (Unchanged) ---
         function handlePointerDown(e) {
             e.preventDefault();
             const shapeEl = e.currentTarget;
@@ -259,11 +324,9 @@
             activeOriginalShape = shapeEl;
             activeMatrix = JSON.parse(shapeEl.dataset.matrix);
             
-            // Calculate exact size of board cells right now
             const boardRect = boardEl.getBoundingClientRect();
-            const cellW = (boardRect.width - (9 * 2) - 8) / 10; // subtract gaps and padding
+            const cellW = (boardRect.width - (9 * 2) - 8) / 10; 
 
-            // Build the ghost clone matching the board cell size
             ghostEl.innerHTML = '';
             ghostEl.style.gridTemplateColumns = `repeat(${activeMatrix[0].length}, ${cellW}px)`;
             ghostEl.style.gridTemplateRows = `repeat(${activeMatrix.length}, ${cellW}px)`;
@@ -277,18 +340,15 @@
                 });
             });
 
-            // Make ghost visible
             ghostEl.style.display = 'grid';
-            activeOriginalShape.style.opacity = '0.3'; // dim original
+            activeOriginalShape.style.opacity = '0.3'; 
 
-            // Calculate offset so the block floats above the finger (crucial for mobile)
             const ghostRect = ghostEl.getBoundingClientRect();
             touchOffsetX = ghostRect.width / 2;
-            touchOffsetY = ghostRect.height + 40; // Push it 40px above finger
+            touchOffsetY = ghostRect.height + 50; 
 
             updateGhostPosition(e.clientX, e.clientY);
 
-            // Add global move/up listeners
             document.addEventListener('pointermove', handlePointerMove);
             document.addEventListener('pointerup', handlePointerUp);
         }
@@ -314,14 +374,12 @@
             const boardRect = boardEl.getBoundingClientRect();
             const cellW = (boardRect.width - 26) / 10;
 
-            // Calculate which grid cell the top-left of the ghost is hovering over
             const relativeX = ghostRect.left - boardRect.left;
             const relativeY = ghostRect.top - boardRect.top;
 
             const col = Math.round(relativeX / (cellW + 2));
             const row = Math.round(relativeY / (cellW + 2));
 
-            // Check if valid drop
             if (isValidPlacement(activeMatrix, row, col)) {
                 placeBlock(activeMatrix, row, col);
                 activeOriginalShape.classList.add('used');
@@ -336,17 +394,14 @@
 
                 scoreEl.innerText = score;
             } else {
-                // Invalid drop, revert
                 activeOriginalShape.style.opacity = '1';
             }
 
-            // Cleanup
             ghostEl.style.display = 'none';
             activeOriginalShape = null;
             activeMatrix = null;
         }
 
-        // --- Game Rules Logic ---
         function isValidPlacement(shape, r, c) {
             for (let i = 0; i < shape.length; i++) {
                 for (let j = 0; j < shape[i].length; j++) {
@@ -404,19 +459,17 @@
         }
 
         function checkGameOver() {
-            // Check if ANY shape left in the tray can be placed ANYWHERE on the board
             const shapesLeft = Array.from(trayEl.children).map(c => c.firstChild).filter(s => !s.classList.contains('used'));
             
             for (let shapeEl of shapesLeft) {
                 const matrix = JSON.parse(shapeEl.dataset.matrix);
                 for (let r = 0; r < 10; r++) {
                     for (let c = 0; c < 10; c++) {
-                        if (isValidPlacement(matrix, r, c)) return; // Found a valid move, not game over
+                        if (isValidPlacement(matrix, r, c)) return; 
                     }
                 }
             }
             
-            // If we loop through everything and find no moves:
             document.getElementById('final-score').innerText = score;
             document.getElementById('game-over').classList.remove('hidden');
         }
