@@ -2,181 +2,203 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Study Blocks Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>1010! Block Puzzle</title>
     <style>
         :root {
-            --bg-color: #f8f9fa;
-            --grid-bg: #e9ecef;
-            --cell-empty: #ced4da;
-            --cell-filled: #4caf50;
-            --block-color: #2196f3;
-            --text-main: #343a40;
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --grid-bg: #1e1e1e;
+            --cell-empty: #2c2c2c;
+            --block-color: #00e676;
+            --block-shadow: rgba(0, 230, 118, 0.4);
         }
 
+        /* Prevent scrolling/pull-to-refresh on mobile while playing */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color);
-            color: var(--text-main);
-            text-align: center;
+            color: var(--text-color);
             margin: 0;
-            padding: 20px;
+            padding: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
+            height: 100vh;
+            touch-action: none; 
+            overflow: hidden;
         }
 
-        h1 { margin-top: 0; }
-        .hidden { display: none !important; }
-
-        /* --- Quiz UI --- */
-        #quiz-container {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            max-width: 400px;
+        #header {
             width: 100%;
-            margin-bottom: 20px;
-        }
-
-        .answers {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        button {
-            padding: 12px;
-            font-size: 16px;
-            background-color: #6c757d;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        button:hover { background-color: #5a6268; }
-
-        /* --- Game Board UI --- */
-        #game-container {
+            max-width: 500px;
             display: flex;
-            flex-direction: column;
+            justify-content: space-between;
             align-items: center;
-        }
-
-        .score-board {
+            padding: 20px;
+            box-sizing: border-box;
             font-size: 24px;
             font-weight: bold;
-            margin-bottom: 15px;
         }
 
-        .board {
-            display: grid;
-            grid-template-columns: repeat(10, 30px);
-            grid-template-rows: repeat(10, 30px);
-            gap: 2px;
+        /* Responsive Board */
+        #board {
+            width: 95vw;
+            max-width: 450px;
+            aspect-ratio: 1 / 1;
             background-color: var(--grid-bg);
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            gap: 2px;
             padding: 4px;
-            border-radius: 4px;
+            border-radius: 8px;
+            box-sizing: border-box;
         }
 
         .cell {
-            width: 30px;
-            height: 30px;
             background-color: var(--cell-empty);
-            border-radius: 3px;
+            border-radius: 4px;
         }
 
-        .cell.filled { background-color: var(--cell-filled); }
+        .cell.filled {
+            background-color: var(--block-color);
+            box-shadow: 0 0 8px var(--block-shadow);
+        }
 
-        /* --- Tray & Blocks UI --- */
-        .tray {
+        /* Tray for the 3 choices */
+        #tray {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex: 1;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        /* The shapes in the tray */
+        .shape-container {
+            position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 30px;
-            min-height: 100px;
-            margin-top: 20px;
-            padding: 15px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 350px;
+            width: 100px;
+            height: 100px;
         }
 
         .shape {
             display: grid;
             gap: 2px;
             cursor: grab;
+            touch-action: none; /* Critical for custom dragging */
         }
-        
-        .shape:active { cursor: grabbing; }
+
+        .shape.used {
+            visibility: hidden;
+            pointer-events: none;
+        }
 
         .shape-cell {
-            width: 20px;
-            height: 20px;
+            background-color: transparent;
             border-radius: 2px;
         }
 
-        .shape-cell.solid { background-color: var(--block-color); }
-        .shape-cell.blank { background-color: transparent; }
+        .shape-cell.solid {
+            background-color: var(--block-color);
+        }
+
+        /* The floating clone that follows your finger */
+        #drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+            grid-template-columns: auto;
+            gap: 2px;
+        }
+        
+        #drag-ghost .shape-cell {
+            border-radius: 4px;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        
+        .hidden { display: none !important; }
+
+        button {
+            padding: 15px 30px;
+            font-size: 20px;
+            background-color: var(--block-color);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Study Blocks</h1>
-
-    <div id="quiz-container">
-        <h2>Answer to earn blocks!</h2>
-        <h3 id="question-text">Loading question...</h3>
-        <div class="answers" id="answer-buttons">
-            </div>
-        <p id="quiz-feedback" style="color: red; height: 20px; margin-top: 10px;"></p>
+    <div id="header">
+        <div>Score: <span id="score">0</span></div>
     </div>
 
-    <div id="game-container" class="hidden">
-        <div class="score-board">Score: <span id="score">0</span></div>
-        <div class="board" id="board">
-            </div>
-        <div class="tray" id="tray">
-            </div>
+    <div id="board"></div>
+    <div id="tray"></div>
+
+    <div id="drag-ghost"></div>
+
+    <div id="game-over" class="hidden">
+        <h1 style="color: white; font-size: 48px; margin-bottom: 0;">Game Over</h1>
+        <h2 style="color: #aaa;">Final Score: <span id="final-score">0</span></h2>
+        <button onclick="resetGame()">Play Again</button>
     </div>
 
     <script>
-        // --- Game Data ---
-        const flashcards = [
-            { q: "What is the powerhouse of the cell?", a: "Mitochondria", distractors: ["Nucleus", "Ribosome", "Golgi"] },
-            { q: "What is the capital of France?", a: "Paris", distractors: ["London", "Berlin", "Madrid"] },
-            { q: "What is 8 x 7?", a: "56", distractors: ["54", "64", "48"] },
-            { q: "H2O is the chemical formula for?", a: "Water", distractors: ["Salt", "Oxygen", "Carbon"] }
-        ];
-
-        // 1 = solid, 0 = empty space in the bounding box
-        const shapeLibrary = [
-            [[1]], // 1x1
-            [[1, 1]], // 1x2 Horizontal
-            [[1], [1]], // 1x2 Vertical
-            [[1, 1], [1, 1]], // 2x2 Square
-            [[1, 1, 1]], // 1x3 Horizontal
-            [[1], [1], [1]], // 1x3 Vertical
-            [[1, 0], [1, 1]] // Small L
-        ];
-
-        // --- State Variables ---
+        // --- Game State ---
         let grid = Array.from({ length: 10 }, () => Array(10).fill(0));
         let score = 0;
-        let blocksInTray = 0;
+        let shapesInTray = 0;
+
+        // Expanded block library for the real game feel
+        const shapeLibrary = [
+            [[1]], // 1x1
+            [[1, 1]], // 1x2 H
+            [[1], [1]], // 1x2 V
+            [[1, 1, 1]], // 1x3 H
+            [[1], [1], [1]], // 1x3 V
+            [[1, 1, 1, 1]], // 1x4 H
+            [[1], [1], [1], [1]], // 1x4 V
+            [[1, 1], [1, 1]], // 2x2 Square
+            [[1, 1, 1], [1, 1, 1], [1, 1, 1]], // 3x3 Square
+            [[1, 1], [1, 0]], [[1, 1], [0, 1]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], // Small L's
+            [[1, 1, 1], [1, 0, 0], [1, 0, 0]], [[1, 1, 1], [0, 0, 1], [0, 0, 1]], // Big L's
+            [[1, 0, 0], [1, 0, 0], [1, 1, 1]], [[0, 0, 1], [0, 0, 1], [1, 1, 1]]
+        ];
 
         // --- DOM Elements ---
-        const quizContainer = document.getElementById('quiz-container');
-        const gameContainer = document.getElementById('game-container');
         const boardEl = document.getElementById('board');
         const trayEl = document.getElementById('tray');
         const scoreEl = document.getElementById('score');
+        const ghostEl = document.getElementById('drag-ghost');
+        
+        // --- Drag Variables ---
+        let activeOriginalShape = null;
+        let activeMatrix = null;
+        let touchOffsetX = 0;
+        let touchOffsetY = 0;
 
         // --- Initialization ---
         function initBoard() {
@@ -187,134 +209,149 @@
                     cell.classList.add('cell');
                     cell.dataset.row = r;
                     cell.dataset.col = c;
-                    
-                    // Drag and Drop Listeners
-                    cell.addEventListener('dragover', (e) => e.preventDefault());
-                    cell.addEventListener('drop', handleDrop);
-                    
                     boardEl.appendChild(cell);
                 }
             }
         }
 
-        // --- Quiz Logic ---
-        function loadQuiz() {
-            quizContainer.classList.remove('hidden');
-            gameContainer.classList.add('hidden');
-            document.getElementById('quiz-feedback').innerText = "";
-
-            const randomCard = flashcards[Math.floor(Math.random() * flashcards.length)];
-            document.getElementById('question-text').innerText = randomCard.q;
-
-            // Mix correct answer with distractors
-            let options = [...randomCard.distractors, randomCard.a];
-            options.sort(() => Math.random() - 0.5);
-
-            const btnContainer = document.getElementById('answer-buttons');
-            btnContainer.innerHTML = '';
-
-            options.forEach(opt => {
-                const btn = document.createElement('button');
-                btn.innerText = opt;
-                btn.onclick = () => {
-                    if (opt === randomCard.a) {
-                        generateTrayBlocks();
-                        quizContainer.classList.add('hidden');
-                        gameContainer.classList.remove('hidden');
-                    } else {
-                        document.getElementById('quiz-feedback').innerText = "Incorrect, try again!";
-                    }
-                };
-                btnContainer.appendChild(btn);
-            });
-        }
-
-        // --- Block & Tray Logic ---
-        function generateTrayBlocks() {
+        function spawnTrayShapes() {
             trayEl.innerHTML = '';
-            blocksInTray = 3;
+            shapesInTray = 3;
 
             for (let i = 0; i < 3; i++) {
-                const randomShape = shapeLibrary[Math.floor(Math.random() * shapeLibrary.length)];
+                const matrix = shapeLibrary[Math.floor(Math.random() * shapeLibrary.length)];
                 
-                const shapeContainer = document.createElement('div');
-                shapeContainer.classList.add('shape');
-                shapeContainer.draggable = true;
-                shapeContainer.dataset.matrix = JSON.stringify(randomShape);
-                
-                // Set CSS grid columns based on shape matrix width
-                shapeContainer.style.gridTemplateColumns = `repeat(${randomShape[0].length}, 20px)`;
+                const container = document.createElement('div');
+                container.classList.add('shape-container');
 
-                // Draw the mini blocks
-                randomShape.forEach(row => {
+                const shapeEl = document.createElement('div');
+                shapeEl.classList.add('shape');
+                shapeEl.dataset.matrix = JSON.stringify(matrix);
+                
+                // Tray shapes are drawn smaller (15px cells)
+                shapeEl.style.gridTemplateColumns = `repeat(${matrix[0].length}, 15px)`;
+                shapeEl.style.gridTemplateRows = `repeat(${matrix.length}, 15px)`;
+
+                matrix.forEach(row => {
                     row.forEach(val => {
-                        const miniblock = document.createElement('div');
-                        miniblock.classList.add('shape-cell');
-                        if (val === 1) miniblock.classList.add('solid');
-                        else miniblock.classList.add('blank');
-                        shapeContainer.appendChild(miniblock);
+                        const cell = document.createElement('div');
+                        cell.classList.add('shape-cell');
+                        if (val === 1) cell.classList.add('solid');
+                        shapeEl.appendChild(cell);
                     });
                 });
 
-                // Drag Start Event
-                shapeContainer.addEventListener('dragstart', (e) => {
-                    e.dataTransfer.setData('application/json', shapeContainer.dataset.matrix);
-                    shapeContainer.classList.add('dragging');
-                });
-
-                shapeContainer.addEventListener('dragend', (e) => {
-                    shapeContainer.classList.remove('dragging');
-                });
-
-                trayEl.appendChild(shapeContainer);
-            }
-        }
-
-        // --- Placement & Core Game Logic ---
-        function handleDrop(e) {
-            e.preventDefault();
-            const matrixStr = e.dataTransfer.getData('application/json');
-            if (!matrixStr) return;
-
-            const shape = JSON.parse(matrixStr);
-            const targetCell = e.target;
-            
-            if (!targetCell.classList.contains('cell')) return;
-
-            const startRow = parseInt(targetCell.dataset.row);
-            const startCol = parseInt(targetCell.dataset.col);
-
-            // 1. Check if placement is valid
-            if (isValidPlacement(shape, startRow, startCol)) {
-                // 2. Place block
-                placeBlock(shape, startRow, startCol);
+                // Attach Pointer Events for our custom drag
+                shapeEl.addEventListener('pointerdown', handlePointerDown);
                 
-                // 3. Remove from tray
-                const draggedElement = document.querySelector('.dragging');
-                if (draggedElement) draggedElement.remove();
-                blocksInTray--;
-
-                // 4. Check for line clears
-                checkLines();
-
-                // 5. Update score
-                score += shape.flat().filter(v => v === 1).length * 10;
-                scoreEl.innerText = score;
-
-                // 6. Loop back to quiz if tray is empty
-                if (blocksInTray === 0) {
-                    setTimeout(loadQuiz, 500); // slight delay for visual smoothness
-                }
+                container.appendChild(shapeEl);
+                trayEl.appendChild(container);
             }
+            checkGameOver();
         }
 
+        // --- Custom Drag Logic ---
+        function handlePointerDown(e) {
+            e.preventDefault();
+            const shapeEl = e.currentTarget;
+            if (shapeEl.classList.contains('used')) return;
+
+            activeOriginalShape = shapeEl;
+            activeMatrix = JSON.parse(shapeEl.dataset.matrix);
+            
+            // Calculate exact size of board cells right now
+            const boardRect = boardEl.getBoundingClientRect();
+            const cellW = (boardRect.width - (9 * 2) - 8) / 10; // subtract gaps and padding
+
+            // Build the ghost clone matching the board cell size
+            ghostEl.innerHTML = '';
+            ghostEl.style.gridTemplateColumns = `repeat(${activeMatrix[0].length}, ${cellW}px)`;
+            ghostEl.style.gridTemplateRows = `repeat(${activeMatrix.length}, ${cellW}px)`;
+            
+            activeMatrix.forEach(row => {
+                row.forEach(val => {
+                    const cell = document.createElement('div');
+                    cell.classList.add('shape-cell');
+                    if (val === 1) cell.classList.add('solid');
+                    ghostEl.appendChild(cell);
+                });
+            });
+
+            // Make ghost visible
+            ghostEl.style.display = 'grid';
+            activeOriginalShape.style.opacity = '0.3'; // dim original
+
+            // Calculate offset so the block floats above the finger (crucial for mobile)
+            const ghostRect = ghostEl.getBoundingClientRect();
+            touchOffsetX = ghostRect.width / 2;
+            touchOffsetY = ghostRect.height + 40; // Push it 40px above finger
+
+            updateGhostPosition(e.clientX, e.clientY);
+
+            // Add global move/up listeners
+            document.addEventListener('pointermove', handlePointerMove);
+            document.addEventListener('pointerup', handlePointerUp);
+        }
+
+        function handlePointerMove(e) {
+            if (!activeOriginalShape) return;
+            e.preventDefault();
+            updateGhostPosition(e.clientX, e.clientY);
+        }
+
+        function updateGhostPosition(x, y) {
+            ghostEl.style.left = `${x - touchOffsetX}px`;
+            ghostEl.style.top = `${y - touchOffsetY}px`;
+        }
+
+        function handlePointerUp(e) {
+            if (!activeOriginalShape) return;
+
+            document.removeEventListener('pointermove', handlePointerMove);
+            document.removeEventListener('pointerup', handlePointerUp);
+
+            const ghostRect = ghostEl.getBoundingClientRect();
+            const boardRect = boardEl.getBoundingClientRect();
+            const cellW = (boardRect.width - 26) / 10;
+
+            // Calculate which grid cell the top-left of the ghost is hovering over
+            const relativeX = ghostRect.left - boardRect.left;
+            const relativeY = ghostRect.top - boardRect.top;
+
+            const col = Math.round(relativeX / (cellW + 2));
+            const row = Math.round(relativeY / (cellW + 2));
+
+            // Check if valid drop
+            if (isValidPlacement(activeMatrix, row, col)) {
+                placeBlock(activeMatrix, row, col);
+                activeOriginalShape.classList.add('used');
+                shapesInTray--;
+                
+                score += activeMatrix.flat().filter(v => v === 1).length * 10;
+                
+                checkLines();
+                
+                if (shapesInTray === 0) spawnTrayShapes();
+                else checkGameOver();
+
+                scoreEl.innerText = score;
+            } else {
+                // Invalid drop, revert
+                activeOriginalShape.style.opacity = '1';
+            }
+
+            // Cleanup
+            ghostEl.style.display = 'none';
+            activeOriginalShape = null;
+            activeMatrix = null;
+        }
+
+        // --- Game Rules Logic ---
         function isValidPlacement(shape, r, c) {
             for (let i = 0; i < shape.length; i++) {
                 for (let j = 0; j < shape[i].length; j++) {
                     if (shape[i][j] === 1) {
-                        // Check out of bounds
-                        if (r + i >= 10 || c + j >= 10) return false;
-                        // Check overlap
+                        if (r + i < 0 || r + i >= 10 || c + j < 0 || c + j >= 10) return false;
                         if (grid[r + i][c + j] === 1) return false;
                     }
                 }
@@ -327,7 +364,7 @@
                 for (let j = 0; j < shape[i].length; j++) {
                     if (shape[i][j] === 1) {
                         grid[r + i][c + j] = 1;
-                        const cell = document.querySelector(`.cell[data-row="${r + i}"][data-col="${c + j}"]`);
+                        const cell = boardEl.children[(r + i) * 10 + (c + j)];
                         cell.classList.add('filled');
                     }
                 }
@@ -338,23 +375,17 @@
             let rowsToClear = [];
             let colsToClear = [];
 
-            // Check Rows
             for (let r = 0; r < 10; r++) {
                 if (grid[r].every(val => val === 1)) rowsToClear.push(r);
             }
-
-            // Check Columns
             for (let c = 0; c < 10; c++) {
                 let isFull = true;
                 for (let r = 0; r < 10; r++) {
-                    if (grid[r][c] === 0) {
-                        isFull = false; break;
-                    }
+                    if (grid[r][c] === 0) { isFull = false; break; }
                 }
                 if (isFull) colsToClear.push(c);
             }
 
-            // Clear them and add score
             rowsToClear.forEach(r => {
                 for(let c = 0; c < 10; c++) clearCell(r, c);
                 score += 100;
@@ -368,13 +399,40 @@
 
         function clearCell(r, c) {
             grid[r][c] = 0;
-            const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+            const cell = boardEl.children[r * 10 + c];
             cell.classList.remove('filled');
+        }
+
+        function checkGameOver() {
+            // Check if ANY shape left in the tray can be placed ANYWHERE on the board
+            const shapesLeft = Array.from(trayEl.children).map(c => c.firstChild).filter(s => !s.classList.contains('used'));
+            
+            for (let shapeEl of shapesLeft) {
+                const matrix = JSON.parse(shapeEl.dataset.matrix);
+                for (let r = 0; r < 10; r++) {
+                    for (let c = 0; c < 10; c++) {
+                        if (isValidPlacement(matrix, r, c)) return; // Found a valid move, not game over
+                    }
+                }
+            }
+            
+            // If we loop through everything and find no moves:
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('game-over').classList.remove('hidden');
+        }
+
+        function resetGame() {
+            grid = Array.from({ length: 10 }, () => Array(10).fill(0));
+            score = 0;
+            scoreEl.innerText = score;
+            document.getElementById('game-over').classList.add('hidden');
+            initBoard();
+            spawnTrayShapes();
         }
 
         // Start App
         initBoard();
-        loadQuiz();
+        spawnTrayShapes();
 
     </script>
 </body>
